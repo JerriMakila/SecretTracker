@@ -1,1 +1,1 @@
-const baseUrl = "http://localhost:8080/";
+const baseUrl = "https://secret-tracker-test.herokuapp.com/";
