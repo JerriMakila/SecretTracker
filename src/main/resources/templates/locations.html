@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
 <head>
     <title>Locations</title>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -8,18 +8,21 @@
 </head>
 <body>
     <div class="content">
+        <span style="display: none;"><span sec:authentication="principal.authorities" id="role"></span></span>
         <div class="col-md-4" style="padding:20px 0">
 			<form th:action="@{/logout}" method="post">
 				<input type="submit" value="Sign Out" class="btn btn-sm btn-danger"/>
 			</form>
 		</div>
         <div><h1>Locations</h1></div>
+        <div id="error-msg"></div>
         <p><a class="button btn btn-success" href="/addlocation">Add a location</a></p>
         <div class="locations-table">
             <table class="table table-striped">
                 <thead class="table-dark">
                     <th class="location-column">Location</th>
                     <th>Secrets</th>
+                    <th sec:authorize="hasAuthority('ADMIN')"></th>
                 </thead>
                 <tbody id='location-table'>
                 </tbody>
