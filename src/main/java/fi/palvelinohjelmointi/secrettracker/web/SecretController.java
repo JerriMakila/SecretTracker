@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import fi.palvelinohjelmointi.secrettracker.components.ResponseGenerator;
 import fi.palvelinohjelmointi.secrettracker.domain.Location;
 import fi.palvelinohjelmointi.secrettracker.domain.LocationRepository;
 import fi.palvelinohjelmointi.secrettracker.domain.Secret;
@@ -32,7 +33,6 @@ import fi.palvelinohjelmointi.secrettracker.domain.SecretRepository;
 import fi.palvelinohjelmointi.secrettracker.domain.Tool;
 import fi.palvelinohjelmointi.secrettracker.domain.ToolRepository;
 import fi.palvelinohjelmointi.secrettracker.dto.SecretDto;
-import fi.palvelinohjelmointi.secrettracker.services.ErrorService;
 
 @RestController
 public class SecretController {
@@ -47,7 +47,7 @@ public class SecretController {
 	private ToolRepository toolRepository;
 	
 	@Autowired
-	private ErrorService errorService;
+	private ResponseGenerator resGenerator; // imported from components-package
 	
 	// Get all secrets from the database;
 	@GetMapping("/secrets")
@@ -57,11 +57,12 @@ public class SecretController {
 	
 	// Get a secret with specific id
 	@GetMapping("/secrets/{id}")
-	public @ResponseBody ResponseEntity<Optional<Secret>> getSecretById(@PathVariable("id") Long secretId){
+	public @ResponseBody ResponseEntity<?> getSecretById(@PathVariable("id") Long secretId){
 		Optional<Secret> secret = secretRepository.findById(secretId);
 		
 		if(secret.isEmpty()) {
-			return new ResponseEntity<>(secret, HttpStatus.NOT_FOUND);
+			Map<String, String> response = resGenerator.createResponse("Secret with the given id was not found", "404"); // A method from ResponseGenerator-component
+			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}else {
 			return new ResponseEntity<>(secret, HttpStatus.OK);
 		}
@@ -70,13 +71,10 @@ public class SecretController {
 	// Create a new secret
 	@PostMapping("/secrets")
 	public @ResponseBody ResponseEntity<Map<String, String>> addSecret(@Valid @RequestBody SecretDto secret, BindingResult bindingResult){
-		Map<String, String> response = new HashMap<>();
-		String message;
+		Map<String, String> response;
 		
 		if(bindingResult.hasErrors()) {	// If validation notices errors in the data	
-			message = errorService.createErrorMessage(bindingResult);
-			response.put("status", "400");
-			response.put("message", message);
+			response = resGenerator.createResponseFromBingindResult(bindingResult); // A method from ResponseGenerator-component
 			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 		}
 		
@@ -84,10 +82,7 @@ public class SecretController {
 		Optional<Tool> tool = toolRepository.findById(secret.getToolId());
 		
 		if(location.isEmpty()) { // If location with the given id was not found in the database
-			message = "Location not found with given id";
-			response.put("status", "400");
-			response.put("message", message);
-			
+			response = resGenerator.createResponse("Location not found with given id", "400");
 			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 		}
 		
@@ -103,7 +98,7 @@ public class SecretController {
 			try {
 				image = Base64.getDecoder().decode(new String(secret.getImage()).getBytes("UTF-8")); // Converting the base64-string to byte[];
 			}catch(UnsupportedEncodingException e) {
-				
+				secret.setImage(null);
 			}
 		}
 		
@@ -116,10 +111,7 @@ public class SecretController {
 		);
 		
 		secretRepository.save(newSecret);
-		message = "Secret created succesfully";
-		
-		response.put("status", "201");
-		response.put("message", message);
+		response = resGenerator.createResponse("Secret created succesfully", "201"); // A method from ResponseGenerator-component
 		
 		return new ResponseEntity<>(response, HttpStatus.CREATED);
 	}
@@ -127,13 +119,10 @@ public class SecretController {
 	// Modify a secret with a specific id
 	@PutMapping("/secrets/{id}")
 	public @ResponseBody ResponseEntity<Map<String, String>> modifySecret(@Valid @RequestBody SecretDto secretDto, BindingResult bindingResult, @PathVariable("id") Long secretId){
-		Map<String, String> response = new HashMap<>();
-		String message;
+		Map<String, String> response;
 		
 		if(bindingResult.hasErrors()) { // If validation notices any errors in the data
-			message = errorService.createErrorMessage(bindingResult);
-			response.put("status", "400");
-			response.put("message", message);
+			response = resGenerator.createResponseFromBingindResult(bindingResult); // A method from ResponseGenerator-component
 			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 		}
 		
@@ -142,10 +131,7 @@ public class SecretController {
 		Optional<Tool> tool = toolRepository.findById(secretDto.getToolId());
 		
 		if(secret.isEmpty()) { // If secret with the given id was not found
-			message = "Secret with the given id not found";
-			
-			response.put("status", "404");
-			response.put("message", message);
+			response = resGenerator.createResponse("Secret with the given id not found", "404"); // A method from ResponseGenerator-component
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
 		
@@ -155,17 +141,13 @@ public class SecretController {
 		byte[] image = null;
 		
 		if(location.isEmpty()) { // If location with the given id was not found in the database
-			message = "Location with the given id not found";
-			
-			response.put("status", "400");
-			response.put("message", message);
-			
+			response = resGenerator.createResponse("Location with the given id not found", "400");
 			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 		} else {
 			newLocation = location.get();
 		}
 		
-		if(!tool.isEmpty()) {
+		if(tool.isPresent()) { // If requestbody contains an id of an existing tool
 			newTool = tool.get();
 		}
 		
@@ -173,10 +155,10 @@ public class SecretController {
 			try {
 				image = Base64.getDecoder().decode(new String(secretDto.getImage()).getBytes("UTF-8")); // Converting the base64-string to byte[]
 			}catch(UnsupportedEncodingException e) {
-				
+				secretDto.setImage(null);
 			}
 		}else {
-			image = newSecret.getImage();
+			image = newSecret.getImage(); // If the dto doesn't contain a new image, the existing image will be used
 		}
 		
 		newSecret.setSecret(secretDto.getSecret());
@@ -187,11 +169,7 @@ public class SecretController {
 		
 		secretRepository.save(newSecret);
 		
-		message = "Secret modified succesfully";
-		
-		response.put("status", "200");
-		response.put("message", message);
-		
+		response = resGenerator.createResponse("Secret modified succesfully", "200");
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	

@@ -20,11 +20,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import fi.palvelinohjelmointi.secrettracker.components.ResponseGenerator;
 import fi.palvelinohjelmointi.secrettracker.domain.Tool;
 import fi.palvelinohjelmointi.secrettracker.domain.ToolRepository;
 import fi.palvelinohjelmointi.secrettracker.domain.ToolType;
 import fi.palvelinohjelmointi.secrettracker.domain.ToolTypeRepository;
-import fi.palvelinohjelmointi.secrettracker.services.ErrorService;
 
 @RestController
 public class ToolTypeController {
@@ -35,7 +35,7 @@ public class ToolTypeController {
 	private ToolRepository toolRepository;
 	
 	@Autowired
-	private ErrorService errorService;
+	private ResponseGenerator resGenerator; // imported from components-package
 	
 	// Get all tooltypes
 	@GetMapping("/tooltypes")
@@ -45,11 +45,12 @@ public class ToolTypeController {
 	
 	// Get a tooltype with specific id
 	@GetMapping("/tooltypes/{id}")
-	public @ResponseBody ResponseEntity<Optional<ToolType>> getToolTypeById(@PathVariable("id") Long toolTypeId){
+	public @ResponseBody ResponseEntity<?> getToolTypeById(@PathVariable("id") Long toolTypeId){
 		Optional<ToolType> toolType = toolTypeRepository.findById(toolTypeId);
 		
 		if(toolType.isEmpty()) {
-			return new ResponseEntity<>(toolType, HttpStatus.NOT_FOUND);
+			Map<String, String> response = resGenerator.createResponse("Tooltype with the given id not found", "404"); // A method from ResponseGenerator-component
+			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
 		
 		return new ResponseEntity<>(toolType, HttpStatus.OK);
@@ -58,23 +59,16 @@ public class ToolTypeController {
 	// Create a tooltype
 	@PostMapping("/tooltypes")
 	public @ResponseBody ResponseEntity<Map<String, String>> addToolType(@Valid @RequestBody ToolType toolType, BindingResult bindingResult){
-		Map<String, String> response = new HashMap<>();
-		String message;
+		Map<String, String> response;
 		
 		if(bindingResult.hasErrors()) { // If validation notices errors in the request body
-			message = errorService.createErrorMessage(bindingResult);
-			response.put("status", "400");
-			response.put("message", message);
-			
+			response = resGenerator.createResponseFromBingindResult(bindingResult); // A method from ResponseGenerator-component
 			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 		}
 		
 		toolTypeRepository.save(toolType);
 		
-		message = "ToolType created succesfully";
-		response.put("status", "201");
-		response.put("message", message);
-		
+		response = resGenerator.createResponse("Toolype created succesfully", "201"); // A method from ResponseGenerator-component
 		return new ResponseEntity<>(response, HttpStatus.CREATED);
 	}
 	
@@ -82,24 +76,17 @@ public class ToolTypeController {
 	@PutMapping("/tooltypes/{id}")
 	public @ResponseBody ResponseEntity<Map<String, String>> editToolType(@Valid @RequestBody ToolType requestToolType, BindingResult bindingResult,
 			@PathVariable("id") Long toolTypeId){
-		Map<String, String> response = new HashMap<>();
-		String message;
+		Map<String, String> response;
 		
 		if(bindingResult.hasErrors()) { // If validation notices error in request body
-			message = errorService.createErrorMessage(bindingResult);
-			response.put("status", "400");
-			response.put("message", message);
-			
+			response = resGenerator.createResponseFromBingindResult(bindingResult); // A method from ResponseGenerator-component
 			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 		}
 		
 		Optional<ToolType> toolType = toolTypeRepository.findById(toolTypeId);
 		
 		if(toolType.isEmpty()) { // If tooltype with the given id was not found
-			message = "No tooltype found with the given id";
-			response.put("status", "404");
-			response.put("message", message);
-			
+			response = resGenerator.createResponse("Tooltype with the given id not found", "404");
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
 		
@@ -107,9 +94,7 @@ public class ToolTypeController {
 		newToolType.setToolType(requestToolType.getToolType());
 		toolTypeRepository.save(newToolType);
 		
-		message = "ToolType modified succesfully";
-		response.put("status", "200");
-		response.put("message", message);
+		response = resGenerator.createResponse("Tooltype modified succesfully", "200");
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
@@ -117,35 +102,25 @@ public class ToolTypeController {
 	// Delete a tooltype with specific id
 	@DeleteMapping("/tooltypes/{id}")
 	public @ResponseBody ResponseEntity<Map<String, String>> deleteToolType(@PathVariable("id") Long toolTypeId){
-		Map<String, String> response = new HashMap<>();
-		String message;
+		Map<String, String> response;
 		
 		Optional<ToolType> toolType = toolTypeRepository.findById(toolTypeId);
 		
 		if(toolType.isEmpty()) { // If tooltype with the given id was not found
-			message = "ToolType with the given id not found";
-			response.put("status", "404");
-			response.put("message", message);
-			
+			response = resGenerator.createResponse("Tooltype with the given id not found", "404");
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
 		
 		List<Tool> tools = toolRepository.findByTooltypeId(toolType.get());
 		
 		if(tools.size() > 0) { // If there are tools associated with the tooltype in question
-			message = "Tooltype has benn already linked with tools";
-			response.put("status", "400");
-			response.put("message", message);
-			
+			response = resGenerator.createResponse("Tooltype has been already linked with a tool", "400");
 			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 		}
 		
 		toolTypeRepository.deleteById(toolTypeId);
 		
-		message = "ToolType created succesfully";
-		response.put("status", "204");
-		response.put("message", message);
-		
+		response = null;
 		return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
 	}
 }
